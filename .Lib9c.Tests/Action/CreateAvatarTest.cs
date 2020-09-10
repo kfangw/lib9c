@@ -72,10 +72,11 @@ namespace Lib9c.Tests.Action
                 PreviousStates = state,
                 Signer = _agentAddress,
                 BlockIndex = 0,
+                Random = new TestRandom(),
             });
 
             Assert.Equal(
-                0,
+                999999999,
                 nextState.GetBalance(default, gold.Currency).MajorUnit
             );
             Assert.True(nextState.TryGetAgentAvatarStates(

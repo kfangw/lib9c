@@ -56,6 +56,7 @@ namespace Nekoyume.BlockChain
         // FIXME 남은 설정들도 설정화 해야 할지도?
         public IBlockPolicy<NCAction> GetPolicy(int minimumDifficulty, int maximumTransactions)
         {
+            return new DebugPolicy();
 #if UNITY_EDITOR
             return new DebugPolicy();
 #else

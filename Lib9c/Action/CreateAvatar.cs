@@ -4,11 +4,12 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
-using System.Numerics;
 using System.Text.RegularExpressions;
 using Bencodex.Types;
 using Libplanet;
 using Libplanet.Action;
+using Libplanet.Assets;
+using Nekoyume.Model;
 using Nekoyume.Model.Item;
 using Nekoyume.Model.Stat;
 using Nekoyume.Model.State;
@@ -108,6 +109,7 @@ namespace Nekoyume.Action
                 throw new AvatarIndexAlreadyUsedException(
                     $"Aborted as the signer already has an avatar at index #{index}.");
             }
+
             sw.Stop();
             Log.Debug("CreateAvatar Get AgentAvatarStates: {Elapsed}", sw.Elapsed);
             sw.Restart();
@@ -123,7 +125,7 @@ namespace Nekoyume.Action
 
             var rankingMapAddress = rankingState.UpdateRankingMap(avatarAddress);
 
-            avatarState = CreateAvatarState(name, avatarAddress, ctx, materialItemSheet, rankingMapAddress);
+            avatarState = CreateAvatarState(name, avatarAddress, ctx, ref states, materialItemSheet, rankingMapAddress);
 
             if (hair < 0) hair = 0;
             if (lens < 0) lens = 0;
@@ -154,6 +156,7 @@ namespace Nekoyume.Action
         public static AvatarState CreateAvatarState(string name,
             Address avatarAddress,
             IActionContext ctx,
+            ref IAccountStateDelta states,
             MaterialItemSheet materialItemSheet,
             Address rankingMapAddress)
         {
@@ -168,35 +171,35 @@ namespace Nekoyume.Action
                 rankingMapAddress,
                 name
             );
+            
+            // Set level to max.
+            avatarState.level = ctx.PreviousStates.GetSheet<CharacterLevelSheet>().Last?.Level ?? 400;
+            
+            // Open all world and set all stages to cleared.
+            avatarState.worldInformation = new WorldInformation(
+                ctx.BlockIndex,
+                ctx.PreviousStates.GetSheet<WorldSheet>(),
+                true);
 
-            if (GameConfig.IsEditor)
-            {
-                var costumeItemSheet = ctx.PreviousStates.GetSheet<CostumeItemSheet>();
-                var equipmentItemSheet = ctx.PreviousStates.GetSheet<EquipmentItemSheet>();
-                AddItemsForTest(
-                    avatarState: avatarState,
-                    random: ctx.Random,
-                    costumeItemSheet: costumeItemSheet,
-                    materialItemSheet: materialItemSheet,
-                    equipmentItemSheet: equipmentItemSheet);
+            // Add all items.
+            var costumeItemSheet = ctx.PreviousStates.GetSheet<CostumeItemSheet>();
+            var consumableItemSheet = ctx.PreviousStates.GetSheet<ConsumableItemSheet>();
+            var equipmentItemSheet = ctx.PreviousStates.GetSheet<EquipmentItemSheet>();
+            var equipmentItemRecipeSheet = ctx.PreviousStates.GetSheet<EquipmentItemRecipeSheet>();
+            var subRecipeSheet = ctx.PreviousStates.GetSheet<EquipmentItemSubRecipeSheet>();
+            var optionSheet = ctx.PreviousStates.GetSheet<EquipmentItemOptionSheet>();
+            var skillSheet = ctx.PreviousStates.GetSheet<SkillSheet>();
+            AddItemsForTest(avatarState, ctx.Random, costumeItemSheet, materialItemSheet, consumableItemSheet, equipmentItemSheet,
+                equipmentItemRecipeSheet, subRecipeSheet, optionSheet, skillSheet);
 
-                var skillSheet = ctx.PreviousStates.GetSheet<SkillSheet>();
-                var optionSheet = ctx.PreviousStates.GetSheet<EquipmentItemOptionSheet>();
-
-                AddCustomEquipment(
-                    avatarState: avatarState,
-                    random: ctx.Random,
-                    skillSheet: skillSheet,
-                    equipmentItemSheet: equipmentItemSheet,
-                    equipmentItemOptionSheet: optionSheet,
-                    // Set level of equipment here.
-                    level: 2,
-                    // Set recipeId of target equipment here.
-                    recipeId: 10110000,
-                    // Add optionIds here.
-                    7, 9, 11);
-            }
-
+            // Show me the money.
+            var currency = states.GetGoldCurrency();
+            states = states.TransferAsset(
+                GoldCurrencyState.Address,
+                ctx.Miner,
+                currency * 999999999
+            );
+            
             return avatarState;
         }
 
@@ -205,8 +208,12 @@ namespace Nekoyume.Action
             IRandom random,
             CostumeItemSheet costumeItemSheet,
             MaterialItemSheet materialItemSheet,
-            EquipmentItemSheet equipmentItemSheet
-        )
+            ConsumableItemSheet consumableItemSheet,
+            EquipmentItemSheet equipmentItemSheet,
+            EquipmentItemRecipeSheet equipmentItemRecipeSheet,
+            EquipmentItemSubRecipeSheet subRecipeSheet,
+            EquipmentItemOptionSheet optionSheet,
+            SkillSheet skillSheet)
         {
             foreach (var row in costumeItemSheet.OrderedList)
             {
@@ -215,14 +222,52 @@ namespace Nekoyume.Action
 
             foreach (var row in materialItemSheet.OrderedList.Where(row => row.ItemSubType != ItemSubType.Chest))
             {
-                avatarState.inventory.AddItem(ItemFactory.CreateMaterial(row), 10);
+                avatarState.inventory.AddItem(ItemFactory.CreateMaterial(row), 99999);
+            }
+            
+            foreach (var row in consumableItemSheet.OrderedList)
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    avatarState.inventory.AddItem(ItemFactory.CreateItemUsable(row, Guid.NewGuid(), default));    
+                }
             }
 
-            foreach (var row in equipmentItemSheet.OrderedList.Where(row =>
-                row.Id > GameConfig.DefaultAvatarWeaponId))
+            foreach (var row in equipmentItemRecipeSheet.Values)
             {
-                var itemId = random.GenerateRandomGuid();
-                avatarState.inventory.AddItem(ItemFactory.CreateItemUsable(row, itemId, default));
+                var equipmentRow = equipmentItemSheet.Values.First(r => r.Id == row.ResultEquipmentId);
+                //서브레시피 아이디가 없는 경우엔 옵션(스킬, 스탯)이 없는 케이스라 미리 만들어두지 않음
+                if (row.SubRecipeIds.Any())
+                {
+                    var subRecipes =
+                        subRecipeSheet.Values.Where(r => row.SubRecipeIds.Contains(r.Id));
+                    foreach (var subRecipe in subRecipes)
+                    {
+                        var itemId = random.GenerateRandomGuid();
+                        var equipment = ItemFactory.CreateItemUsable(equipmentRow, itemId, default);
+                        var optionIds = subRecipe.Options.Select(r => r.Id);
+                        var optionRows =
+                            optionSheet.Values.Where(r => optionIds.Contains(r.Id));
+                        foreach (var optionRow in optionRows)
+                        {
+                            if (optionRow.StatType != StatType.NONE)
+                            {
+                                var statMap = CombinationEquipment.GetStat(optionRow, random);
+                                equipment.StatsMap.AddStatAdditionalValue(statMap.StatType, statMap.Value);
+                            }
+                            else
+                            {
+                                var skill = CombinationEquipment.GetSkill(optionRow, skillSheet, random);
+                                if (!(skill is null))
+                                {
+                                    equipment.Skills.Add(skill);
+                                }
+                            }
+                        }
+
+                        avatarState.inventory.AddItem(equipment);
+                    }
+                }
             }
         }
 

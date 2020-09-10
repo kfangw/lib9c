@@ -241,8 +241,7 @@ namespace Nekoyume.Action
             return new StatMap(row.StatType, value);
         }
 
-        public static Skill GetSkill(EquipmentItemOptionSheet.Row row, SkillSheet skillSheet,
-            IRandom random)
+        public static Skill GetSkill(EquipmentItemOptionSheet.Row row, SkillSheet skillSheet, IRandom random)
         {
             try
             {

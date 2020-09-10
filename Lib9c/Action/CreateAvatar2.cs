@@ -3,13 +3,9 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
-using System.Numerics;
 using System.Text.RegularExpressions;
 using Bencodex.Types;
-using Libplanet;
 using Libplanet.Action;
-using Nekoyume.Model.Item;
 using Nekoyume.Model.State;
 using Nekoyume.TableData;
 using Serilog;
@@ -126,7 +122,7 @@ namespace Nekoyume.Action
 
             var rankingMapAddress = rankingState.UpdateRankingMap(avatarAddress);
 
-            avatarState = CreateAvatar.CreateAvatarState(name, avatarAddress, ctx, materialItemSheet, rankingMapAddress);
+            avatarState = CreateAvatar.CreateAvatarState(name, avatarAddress, ctx, ref states, materialItemSheet, rankingMapAddress);
 
             if (hair < 0) hair = 0;
             if (lens < 0) lens = 0;

@@ -69,10 +69,11 @@ namespace Lib9c.Tests.Action
                 PreviousStates = state,
                 Signer = _agentAddress,
                 BlockIndex = 0,
+                Random = new TestRandom(),
             });
 
             Assert.Equal(
-                0,
+                999999999,
                 nextState.GetBalance(default, gold.Currency).MajorUnit
             );
 
@@ -92,6 +93,10 @@ namespace Lib9c.Tests.Action
             Assert.True(agentState.avatarAddresses.Any());
             Assert.Equal("test", nextAvatarState.name);
             Assert.Equal(avatarAddress, nextState.GetRankingState().RankingMap[nextAvatarState.RankingMapAddress].First());
+
+            nextAvatarState.worldInformation.TryGetLastClearedStageId(out var stageId);
+            Assert.Equal(200, stageId);
+            Assert.Equal(nextState.GetSheet<CharacterLevelSheet>().Last?.Level ?? 400, nextAvatarState.level);
         }
 
         [Theory]

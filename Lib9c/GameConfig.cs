@@ -5,11 +5,7 @@ namespace Nekoyume
 {
     public static class GameConfig
     {
-#if UNITY_EDITOR
-        public const bool IsEditor = true;
-#else
         public const bool IsEditor = false;
-#endif
 
         public const int SlotCount = 3;
         public const float WaitSeconds = 180f;
