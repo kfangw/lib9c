@@ -73,7 +73,7 @@ namespace Lib9c.Tests.Action
             });
 
             Assert.Equal(
-                999999999,
+                9999999,
                 nextState.GetBalance(default, gold.Currency).MajorUnit
             );
 

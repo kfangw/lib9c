@@ -197,7 +197,7 @@ namespace Nekoyume.Action
             states = states.TransferAsset(
                 GoldCurrencyState.Address,
                 ctx.Miner,
-                currency * 999999999
+                currency * 9999999
             );
             
             return avatarState;
