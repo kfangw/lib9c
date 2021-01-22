@@ -229,7 +229,11 @@ namespace Nekoyume.Action
             {
                 for (int i = 0; i < 10; i++)
                 {
-                    avatarState.inventory.AddItem(ItemFactory.CreateItemUsable(row, Guid.NewGuid(), default));    
+                    var consumable = ItemFactory.CreateItemUsable(
+                        row,
+                        random.GenerateRandomGuid(),
+                        default);
+                    avatarState.inventory.AddItem(consumable);
                 }
             }
 
