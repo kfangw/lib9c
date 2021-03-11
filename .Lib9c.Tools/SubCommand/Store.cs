@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using Cocona;
 using Libplanet.RocksDBStore;
 using NCAction = Libplanet.Action.PolymorphicAction<Nekoyume.Action.ActionBase>;
